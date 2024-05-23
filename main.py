@@ -1,23 +1,23 @@
 # main.py (mock project)
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 import requests
+import hmac
+import hashlib
+import json
 
 # --------------------------------------------------------------
 # Load environment variables
 # --------------------------------------------------------------
 load_dotenv()
-WHATSAPP_URL = os.getenv("WHATSAPP_URL")
-ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
+BOT_URL = os.getenv("BOT_URL")
+APP_SECRET = os.getenv("APP_SECRET")
 RECIPIENT_WAID = os.getenv("RECIPIENT_WAID")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERSION = os.getenv("VERSION")
-BOT_URL = os.getenv("BOT_URL")
 
-APP_ID = os.getenv("APP_ID")
-APP_SECRET = os.getenv("APP_SECRET")
 
 # --------------------------------------------------------------
 # FastAPI App
@@ -37,11 +37,18 @@ class Message(BaseModel):
 class SendMessage(BaseModel):
     recipient: str
     text: str
+    profile_name: str
+
+# --------------------------------------------------------------
+# Helper Functions
+# --------------------------------------------------------------
+def generate_signature(secret: str, payload: bytes) -> str:
+    mac = hmac.new(secret.encode(), msg=payload, digestmod=hashlib.sha256)
+    return f"sha256={mac.hexdigest()}"
 
 # --------------------------------------------------------------
 # Endpoints
 # --------------------------------------------------------------
-
 @app.post("/{version}/{phone_number_id}/messages")
 async def handle_messages(version: str, phone_number_id: str, message: Message, request: Request):
     if version != VERSION or phone_number_id != PHONE_NUMBER_ID:
@@ -67,34 +74,54 @@ async def handle_messages(version: str, phone_number_id: str, message: Message, 
 def send_message_to_bot(message: SendMessage):
     # Prepare the data in the format expected by the bot's endpoint
     bot_data = {
-        "object": "whatsapp",
+        "object": "whatsapp_business_account",
         "entry": [
             {
-                "id": "entry_id",
+                "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
                 "changes": [
                     {
                         "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": RECIPIENT_WAID,
+                                "phone_number_id": PHONE_NUMBER_ID
+                            },
+                            "contacts": [
+                                {
+                                    "profile": {
+                                        "name": message.profile_name
+                                    },
+                                    "wa_id": message.recipient
+                                }
+                            ],
                             "messages": [
                                 {
                                     "from": message.recipient,
+                                    "id": "wamid.ID",
+                                    "timestamp": "TIMESTAMP",
                                     "text": {
                                         "body": message.text
-                                    }
+                                    },
+                                    "type": "text"
                                 }
                             ]
-                        }
+                        },
+                        "field": "messages"
                     }
                 ]
             }
         ]
     }
+    payload = bytes(json.dumps(bot_data), 'utf-8')
+    signature = generate_signature(APP_SECRET, payload)
 
     # Send the data to the bot's webhook endpoint
     url = f"{BOT_URL}/webhook"
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Hub-Signature-256": signature
     }
-    response = requests.post(url, json=bot_data, headers=headers)
+    response = requests.post(url, data=payload, headers=headers, verify=False)
 
     if response.status_code != 200:
         raise HTTPException(status_code=response.status_code, detail=response.json())
