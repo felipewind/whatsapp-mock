@@ -8,6 +8,7 @@ import hmac
 import hashlib
 import json
 import time
+import logging
 
 # --------------------------------------------------------------
 # Load environment variables
@@ -18,6 +19,15 @@ APP_SECRET = os.getenv("APP_SECRET")
 RECIPIENT_WAID = os.getenv("RECIPIENT_WAID")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 VERSION = os.getenv("VERSION")
+
+
+# --------------------------------------------------------------
+# Setting the log
+# --------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s - %(message)s")
 
 
 # --------------------------------------------------------------
@@ -72,6 +82,7 @@ async def handle_messages(version: str, phone_number_id: str, message: Message, 
 
 @app.post("/send-message/")
 def send_message_to_bot(message: SendMessage):
+    logging.info('send()')
     # Get the current time in seconds since the epoch
     current_timestamp = int(time.time())
     # Prepare the data in the format expected by the bot's endpoint
@@ -123,6 +134,9 @@ def send_message_to_bot(message: SendMessage):
         "Content-Type": "application/json",
         "X-Hub-Signature-256": signature
     }
+
+    logging.info(f'before sending message to {url}')
+
     response = requests.post(url, data=payload, headers=headers, verify=False)
 
     if response.status_code != 200:
