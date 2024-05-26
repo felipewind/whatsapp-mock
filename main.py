@@ -7,6 +7,7 @@ import requests
 import hmac
 import hashlib
 import json
+import time
 
 # --------------------------------------------------------------
 # Load environment variables
@@ -35,7 +36,6 @@ class Message(BaseModel):
     template: dict = None
 
 class SendMessage(BaseModel):
-    recipient: str
     text: str
     profile_name: str
 
@@ -72,6 +72,8 @@ async def handle_messages(version: str, phone_number_id: str, message: Message, 
 
 @app.post("/send-message/")
 def send_message_to_bot(message: SendMessage):
+    # Get the current time in seconds since the epoch
+    current_timestamp = int(time.time())
     # Prepare the data in the format expected by the bot's endpoint
     bot_data = {
         "object": "whatsapp_business_account",
@@ -91,14 +93,14 @@ def send_message_to_bot(message: SendMessage):
                                     "profile": {
                                         "name": message.profile_name
                                     },
-                                    "wa_id": message.recipient
+                                    "wa_id": RECIPIENT_WAID
                                 }
                             ],
                             "messages": [
                                 {
-                                    "from": message.recipient,
+                                    "from": RECIPIENT_WAID,
                                     "id": "wamid.ID",
-                                    "timestamp": "TIMESTAMP",
+                                    "timestamp": current_timestamp,
                                     "text": {
                                         "body": message.text
                                     },
