@@ -9,6 +9,7 @@ import hashlib
 import json
 import time
 import logging
+from admin_api import router as admin_router
 
 # --------------------------------------------------------------
 # Load environment variables
@@ -35,15 +36,20 @@ logging.basicConfig(
 # --------------------------------------------------------------
 app = FastAPI()
 
+app.include_router(admin_router)
+
 # --------------------------------------------------------------
 # Models
 # --------------------------------------------------------------
+
+
 class Message(BaseModel):
     messaging_product: str
     to: str
     type: str
     text: dict = None
     template: dict = None
+
 
 class SendMessage(BaseModel):
     text: str
@@ -52,6 +58,8 @@ class SendMessage(BaseModel):
 # --------------------------------------------------------------
 # Helper Functions
 # --------------------------------------------------------------
+
+
 def generate_signature(secret: str, payload: bytes) -> str:
     mac = hmac.new(secret.encode(), msg=payload, digestmod=hashlib.sha256)
     return f"sha256={mac.hexdigest()}"
@@ -59,11 +67,14 @@ def generate_signature(secret: str, payload: bytes) -> str:
 # --------------------------------------------------------------
 # Endpoints
 # --------------------------------------------------------------
+
+
 @app.post("/{version}/{phone_number_id}/messages")
 async def handle_messages(version: str, phone_number_id: str, message: Message, request: Request):
     if version != VERSION or phone_number_id != PHONE_NUMBER_ID:
-        raise HTTPException(status_code=400, detail="Invalid version or phone number ID")
-    
+        raise HTTPException(
+            status_code=400, detail="Invalid version or phone number ID")
+
     # Log the incoming request
     request_body = await request.json()
     print(f"Received message: {request_body}")
@@ -79,6 +90,7 @@ async def handle_messages(version: str, phone_number_id: str, message: Message, 
             }
         ]
     }
+
 
 @app.post("/send-message/")
 def send_message_to_bot(message: SendMessage):
@@ -140,8 +152,10 @@ def send_message_to_bot(message: SendMessage):
     response = requests.post(url, data=payload, headers=headers, verify=False)
 
     if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.json())
+        raise HTTPException(status_code=response.status_code,
+                            detail=response.json())
     return response.json()
+
 
 # --------------------------------------------------------------
 # Run the FastAPI app
